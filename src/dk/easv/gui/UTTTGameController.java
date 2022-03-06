@@ -22,7 +22,6 @@ import java.net.URL;
 import java.util.ResourceBundle;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javafx.stage.Stage;
 
 public class UTTTGameController implements Initializable {
 
@@ -55,11 +54,11 @@ public class UTTTGameController implements Initializable {
             model.removeListener(observable -> update());
         }
 
+        assert model != null;
         model.addListener(observable -> update());
 
         // HumanVsHuman
         if (player0 != null && player1 != null) {
-
         }
         // HumanVsAI
         else if (bot1 != null && player0 != null) {
@@ -94,7 +93,7 @@ public class UTTTGameController implements Initializable {
 
     private boolean doBotMove() {
         int currentPlayer = model.getCurrentPlayer();
-        Boolean valid = model.doMove();
+        boolean valid = model.doMove();
         if(!valid) {
             int opponent = 0;
             if(model.getCurrentPlayer()==0)
