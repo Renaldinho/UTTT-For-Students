@@ -4,13 +4,118 @@ import dk.easv.bll.field.IField;
 import dk.easv.bll.game.GameState;
 import dk.easv.bll.game.IGameState;
 import dk.easv.bll.move.IMove;
-import java.util.List;
-import java.util.Objects;
-import java.util.Random;
 
-public class ExampleSneakyBot implements IBot{
-    final int moveTimeMs = 1000;
-    private String BOT_NAME = getClass().getSimpleName();
+import java.util.*;
+
+public class NotSoTrashBot implements IBot{
+
+    private final int timeMs = 500;
+    private static final String BOTNAME="Not so trash bot";
+
+
+    @Override
+    public IMove doMove(IGameState state) {
+        return calculateOptimalMove(state,timeMs);
+    }
+
+    // Plays single games until it wins and returns the first move for that. If iterations reached with no clear win, just return random valid move
+    private IMove calculateOptimalMove(IGameState state, int maxTimeMs){
+        Tree tree = new Tree(state);
+        Node rootNode = tree.getRootNode();
+
+        long time = System.currentTimeMillis();
+        Random rand = new Random();
+        int count = 0;
+        while (System.currentTimeMillis() < time + maxTimeMs) {
+            Node promisingNode = selectPromisingNode(rootNode);
+            GameSimulator gs = createSimulator(promisingNode.getGameState());
+            if (gs.getGameOver()
+                    == GameOverState.Active) {
+                expandNode(promisingNode);
+            }
+            Node nodeToExplore = promisingNode;
+            if (promisingNode.getChildList().size() > 0) {
+                nodeToExplore = promisingNode.getRandomChildNode();
+            }
+            int playoutResult = simulateRandomPlayout(nodeToExplore);
+            backPropogation(nodeToExplore, playoutResult);
+        }
+
+
+
+            //printChildBoards(currentNode);
+        List<IMove> availableMoves = rootNode.getGameState().getField().getAvailableMoves();
+        return availableMoves.get(rand.nextInt(availableMoves.size()));
+    }
+
+    private int simulateRandomPlayout(Node nodeToExplore) {
+
+    }
+
+    private void expandNode(Node promisingNode) {
+        List<IMove> availableMoves = promisingNode.getGameState().getField().getAvailableMoves();
+        availableMoves.forEach(move -> {
+            GameSimulator gs = createSimulator(promisingNode.getGameState());
+            gs.updateGame(move);
+            Node childNode = new Node(gs.getCurrentState());
+            promisingNode.getChildList().add(childNode);
+            childNode.setParent(promisingNode);
+        });
+    }
+
+    private Node selectPromisingNode(Node rootNode) {
+        Node node = rootNode;
+        while (rootNode.getChildList().size()!=0)
+            node = UCB.getChildWithHighestUCB(node);
+        return node;
+    }
+
+    private void playUntilTerminal(Node node) {
+        Random rand = new Random();
+        GameSimulator gs = createSimulator(node.getGameState());
+        List<IMove> moves;
+        while (gs.getGameOver()==GameOverState.Active){
+                moves = gs.getCurrentState().getField().getAvailableMoves();
+
+                IMove randomMovePlayer = moves.get(rand.nextInt(moves.size()));
+                gs.updateGame(randomMovePlayer);
+
+            if (gs.getGameOver()==GameOverState.Win){
+                printBoard(gs.getCurrentState().getField().getBoard());
+                System.out.println("win");
+            }
+
+
+            if (gs.getGameOver()==GameOverState.Active){ // game still going
+                moves = gs.getCurrentState().getField().getAvailableMoves();
+                IMove randomMoveOpponent = moves.get(rand.nextInt(moves.size()));
+                gs.updateGame(randomMoveOpponent);
+            }
+        }
+    }
+
+    private void printChildBoards(Node currentNode) {
+        for(Node node: currentNode.getChildList()){
+            String[][] board = node.getGameState().getField().getBoard();
+            for (int x = 0; x<board.length; x++) {
+                for (int y = 0; y < board[x].length; y++) {
+                    System.out.print(board[x][y]+" ");
+                }
+                System.out.println("");
+            }
+            System.out.println("__________________");
+        }
+    }
+
+    private void printBoard(String[][] board){
+        for (int x = 0; x < board.length; x++) {
+            for (int y = 0; y < board[x].length; y++) {
+                System.out.print(board[x][y]+" ");
+            }
+            System.out.println(" ");
+        }
+        System.out.println("______________________");
+    }
 
     private GameSimulator createSimulator(IGameState state) {
         GameSimulator simulator = new GameSimulator(new GameState());
@@ -24,52 +129,8 @@ public class ExampleSneakyBot implements IBot{
     }
 
     @Override
-    public IMove doMove(IGameState state) {
-        return calculateWinningMove(state, moveTimeMs);
-    }
-    // Plays single games until it wins and returns the first move for that. If iterations reached with no clear win, just return random valid move
-    private IMove calculateWinningMove(IGameState state, int maxTimeMs){
-        long time = System.currentTimeMillis();
-        Random rand = new Random();
-        int count = 0;
-        while (System.currentTimeMillis() < time + maxTimeMs) { // check how much time has passed, stop if over maxTimeMs
-            GameSimulator simulator = createSimulator(state);
-            IGameState gs = simulator.getCurrentState();
-            List<IMove> moves = gs.getField().getAvailableMoves();
-            IMove randomMovePlayer = moves.get(rand.nextInt(moves.size()));
-            IMove winnerMove = randomMovePlayer;
-
-            while (simulator.getGameOver()==GameOverState.Active){ // Game not ended
-                simulator.updateGame(randomMovePlayer);
-
-                // Opponent plays randomly
-                if (simulator.getGameOver()==GameOverState.Active){ // game still going
-                    moves = gs.getField().getAvailableMoves();
-                    IMove randomMoveOpponent = moves.get(rand.nextInt(moves.size()));
-                    simulator.updateGame(randomMoveOpponent);
-                }
-                if (simulator.getGameOver()==GameOverState.Active){ // game still going
-                    moves = gs.getField().getAvailableMoves();
-                    randomMovePlayer = moves.get(rand.nextInt(moves.size()));
-                }
-            }
-
-            if (simulator.getGameOver()==GameOverState.Win){
-                //System.out.println("Found a win, :)");
-                return winnerMove; // Hint you could maybe save multiple games and pick the best? Now it just returns at a possible victory
-            }
-            count++;
-        }
-        //System.out.println("Did not win, just doing random :¨(");
-        List<IMove> moves = state.getField().getAvailableMoves();
-        IMove randomMovePlayer = moves.get(rand.nextInt(moves.size()));
-        return randomMovePlayer; // just play randomly if solution not found
-    }
-
-
-    @Override
     public String getBotName() {
-        return BOT_NAME;
+        return BOTNAME;
     }
 
     public enum GameOverState {
@@ -106,7 +167,7 @@ public class ExampleSneakyBot implements IBot{
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Move move = (Move) o;
+            ExampleSneakyBot.Move move = (ExampleSneakyBot.Move) o;
             return x == move.x && y == move.y;
         }
 
@@ -284,4 +345,82 @@ public class ExampleSneakyBot implements IBot{
         }
     }
 
+    class Node{
+        private Node parent;
+        private List<Node> childList;
+        private IGameState state;
+        private int visitCount = 0;
+        double winScore = 0;
+        boolean visited = false;
+
+        public Node(IGameState state) {
+            this.state = state;
+            childList = new ArrayList<>();
+        }
+
+        public int getVisitCount() {
+            return visitCount;
+        }
+
+
+        public List<Node> getChildList() {
+            return childList;
+        }
+
+        public void setGameState(IGameState state){
+            this.state = state;
+        }
+
+        public IGameState getGameState(){
+            return state;
+        }
+
+        public void setVisitedTrue(){
+            visited = true;
+        }
+
+        public double getWinscore() {
+            return winScore;
+        }
+
+        public void setParent(Node parent) {
+            this.parent = parent;
+        }
+
+        public Node getRandomChildNode() {
+            Random random = new Random();
+            return childList.get(random.nextInt(childList.size()));
+        }
+    }
+
+
+    class Tree{
+        private Node rootNode;
+
+        public Tree(IGameState state){
+            rootNode = new Node(state);
+        }
+
+        public Node getRootNode(){
+            return rootNode;
+        }
+    }
+
+    class UCB{
+
+        private static double getUCBValue(int parentVisits,int nodeVisits,double nodeWinScore){
+            if (nodeVisits == 0)
+                return Integer.MAX_VALUE; //this node has not yet been visited meaning the upper confidence bound is infity.
+            return ((Double) (nodeWinScore / nodeVisits)) // win ratio of node
+                    + 1.41 * Math.sqrt(Math.log(parentVisits) / nodeVisits);
+        }
+
+        public static Node getChildWithHighestUCB(Node node){
+            int parentVisits = node.getVisitCount();
+            return Collections.max(node.getChildList(),
+                    Comparator.comparingDouble(node -> getUCBValue(parentVisits,
+                                                                    node.getVisitCount(),
+                                                                    node.getWinscore())));
+        }
+    }
 }

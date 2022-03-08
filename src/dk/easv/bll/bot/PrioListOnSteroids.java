@@ -35,7 +35,7 @@ public class PrioListOnSteroids extends LocalPrioritisedListBot{
                     return true;
 
         int startY = move.getY()-(move.getY()%3);
-        if(board[move.getX()][startY]==player)
+        if(board[move.getX()][startY].equals(player))
             if (board[move.getX()][startY] == board[move.getX()][startY+1] &&
                 board[move.getX()][startY+1] == board[move.getX()][startY+2])
                     return true;
