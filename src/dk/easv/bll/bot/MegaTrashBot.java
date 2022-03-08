@@ -7,10 +7,10 @@ import dk.easv.bll.move.IMove;
 
 import java.util.*;
 
-public class NotSoTrashBot implements IBot{
+public class MegaTrashBot implements IBot{
 
     private final int timeMs = 500;
-    private static final String BOTNAME="Not so trash bot";
+    private static final String BOTNAME="Mega trash bot";
 
 
     @Override
@@ -25,20 +25,18 @@ public class NotSoTrashBot implements IBot{
 
         long time = System.currentTimeMillis();
         Random rand = new Random();
-        int count = 0;
         while (System.currentTimeMillis() < time + maxTimeMs) {
             Node promisingNode = selectPromisingNode(rootNode);
             GameSimulator gs = createSimulator(promisingNode.getGameState());
-            if (gs.getGameOver()
-                    == GameOverState.Active) {
+            if (gs.getGameOver() == GameOverState.Active) {
                 expandNode(promisingNode);
             }
             Node nodeToExplore = promisingNode;
             if (promisingNode.getChildList().size() > 0) {
                 nodeToExplore = promisingNode.getRandomChildNode();
             }
-            int playoutResult = simulateRandomPlayout(nodeToExplore);
-            backPropogation(nodeToExplore, playoutResult);
+            String playoutResult = simulateRandomPlayout(nodeToExplore);
+            backPropogate(nodeToExplore, playoutResult);
         }
 
 
@@ -48,8 +46,39 @@ public class NotSoTrashBot implements IBot{
         return availableMoves.get(rand.nextInt(availableMoves.size()));
     }
 
-    private int simulateRandomPlayout(Node nodeToExplore) {
+    private void backPropogate(Node nodeToExplore, String playoutWinner) {
+        Node tempNode = nodeToExplore;
+        while (tempNode!=null){
+            tempNode.incrementVisits(1);
+            String player = tempNode.getGameState().getMoveNumber()%2==0 ? "1" : "0";
+            if (player.equals(playoutWinner))
+                tempNode.addWinScore(10);
 
+            tempNode = tempNode.getParent();
+        }
+    }
+
+    private String simulateRandomPlayout(Node nodeToExplore) {
+        GameSimulator simulator = createSimulator(nodeToExplore.getGameState());
+        String player = nodeToExplore.getGameState().getMoveNumber()%2==0 ? "1" : "0";
+        Node tempNode = nodeToExplore;
+        Random random  = new Random();
+
+        List<IMove> availableMoves;
+        while (simulator.getGameOver()==GameOverState.Active){
+
+            availableMoves = simulator.getCurrentState().getField().getAvailableMoves();
+            simulator.updateGame(availableMoves.get(random.nextInt(availableMoves.size())));
+            if (simulator.getGameOver()==GameOverState.Win || simulator.getGameOver()==GameOverState.Tie )
+                return player;
+
+
+            availableMoves = simulator.getCurrentState().getField().getAvailableMoves();
+            simulator.updateGame(availableMoves.get(random.nextInt(availableMoves.size())));
+            if (simulator.getGameOver()==GameOverState.Win || simulator.getGameOver()==GameOverState.Tie )
+                return player=="1" ? "0" : "1";
+        }
+        return "-1";
     }
 
     private void expandNode(Node promisingNode) {
@@ -65,7 +94,9 @@ public class NotSoTrashBot implements IBot{
 
     private Node selectPromisingNode(Node rootNode) {
         Node node = rootNode;
-        while (rootNode.getChildList().size()!=0)
+        if (!node.visited)
+            return node;
+        while (rootNode.getChildList().size()>0)
             node = UCB.getChildWithHighestUCB(node);
         return node;
     }
@@ -358,6 +389,14 @@ public class NotSoTrashBot implements IBot{
             childList = new ArrayList<>();
         }
 
+        public void setVisitCount(int visitCount) {
+            this.visitCount = visitCount;
+        }
+
+        public void incrementVisits(int i){
+            visitCount +=i;
+        }
+
         public int getVisitCount() {
             return visitCount;
         }
@@ -391,6 +430,14 @@ public class NotSoTrashBot implements IBot{
             Random random = new Random();
             return childList.get(random.nextInt(childList.size()));
         }
+
+        public Node getParent() {
+            return parent;
+        }
+
+        public void addWinScore(int i) {
+            winScore += i;
+        }
     }
 
 
@@ -417,10 +464,22 @@ public class NotSoTrashBot implements IBot{
 
         public static Node getChildWithHighestUCB(Node node){
             int parentVisits = node.getVisitCount();
-            return Collections.max(node.getChildList(),
-                    Comparator.comparingDouble(node -> getUCBValue(parentVisits,
-                                                                    node.getVisitCount(),
-                                                                    node.getWinscore())));
+            List<Node> children = node.getChildList();
+            /*double highestUCB = Integer.MIN_VALUE;
+            Node bestNode = children.get(0);
+            for(Node child: children){
+                double ucbValue = getUCBValue(parentVisits,child.getVisitCount(),child.winScore);
+                if (ucbValue>highestUCB){
+                    highestUCB = ucbValue;
+                    bestNode = child;
+                }
+            }
+            return bestNode;
+
+             */
+            return Collections.max(children,Comparator.comparingDouble(childNode -> getUCBValue(parentVisits, childNode.getVisitCount(),childNode.winScore)));
+
+
         }
     }
 }
