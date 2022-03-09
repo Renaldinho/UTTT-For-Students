@@ -22,7 +22,7 @@ public class GregBot implements IBot{
     public IMove doMove(IGameState state) {
 
         //Establishing for how long alghoritm should work
-        long endTime = System.currentTimeMillis() + 1000;
+        long endTime = System.currentTimeMillis() + 100;
 
         //Creating rootNode with current game state
         Node rootNode = new Node(state);

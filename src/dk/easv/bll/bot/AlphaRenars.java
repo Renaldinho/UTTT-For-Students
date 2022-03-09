@@ -11,8 +11,8 @@ public class AlphaRenars implements IBot{
     private static final int WIN_SCORE = 10;
     private static final int TIE_SCORE = 3;
     private static final int LOSS_SCORE = -10;
-    final int moveTimeMs = 480;
-    private String BOT_NAME = "Renars";
+    final int moveTimeMs = 100;
+    private String BOT_NAME = "Renar's bot";
 
     Random rand = new Random();
 
@@ -35,12 +35,29 @@ public class AlphaRenars implements IBot{
     //Plays equal amount of random games for each available move, returns the one the provides most win %
     private IMove calculateWinningMove(IGameState state, int maxTimeMs){
         long startTime = System.currentTimeMillis();
-        Node rootNode = new Node(state);
-        rootNode.expand();//For each possible move from rootNode create a new child node
+        Node rootNode = new Node(state);//Create the root node with current game state
+        rootNode.expand();//For each possible move from current game state create a new child node
         List<Node> childrenList = rootNode.getChildren();
         while (System.currentTimeMillis() < startTime + maxTimeMs) { // check how much time has passed, stop if over maxTimeMs
             for (Node node : childrenList) {
                 playOutRandomly_IncrementAccordingly(node,rootNode);
+
+                /*Runnable runnable = new Runnable() {
+                    @Override
+                    public void run() {
+                        playOutRandomly_IncrementAccordingly(node,rootNode);
+                    }
+                };
+                Thread thread1 = new Thread(runnable);
+                Thread thread2 = new Thread(runnable);
+                Thread thread3 = new Thread(runnable);
+                thread1.start();
+                thread2.start();
+                thread3.start();
+
+                 */
+
+
             }
         }
         Node bestNode = rootNode.getBestNode();
@@ -49,14 +66,17 @@ public class AlphaRenars implements IBot{
     }
 
     private void playOutRandomly_IncrementAccordingly(Node node, Node rootNode) {
-        GameSimulator gs = createSimulator(rootNode.getState());
+        GameSimulator gs = createSimulator(rootNode.getState());//Create simulator for rootnodes gamestate
         IMove randomMovePlayer = node.getMoveFromRoot();
+        //1st random move for player is the move needed to move from the game state of rootnode
+        //to the game state of the child node
         boolean win = false;
 
         while (gs.getGameOver()==GameOverState.Active){ // Game not ended
             List<IMove> moves = gs.getCurrentState().getField().getAvailableMoves();
             gs.updateGame(randomMovePlayer);
             win = true;
+            //win = true because if the game ends after you make the move then you've either won or tied the game
 
             // Opponent plays randomly
             if (gs.getGameOver()==GameOverState.Active){ // game still going
@@ -64,6 +84,7 @@ public class AlphaRenars implements IBot{
                 IMove randomMoveOpponent = moves.get(rand.nextInt(moves.size()));
                 gs.updateGame(randomMoveOpponent);
                 win = false;
+                //win = false cause if the game ends after the opponents turn it's either a loss or a tie
             }
             if (gs.getGameOver()==GameOverState.Active){ // game still going
                 moves = gs.getCurrentState().getField().getAvailableMoves();
@@ -71,16 +92,16 @@ public class AlphaRenars implements IBot{
             }
         }
 
-        if (gs.getGameOver()==GameOverState.Win && win){
+        if (gs.getGameOver()==GameOverState.Win && win){//If the game has ended as a win for someone and its you increment node winscore
             node.addScore(WIN_SCORE);
         }
-        if(gs.getGameOver()==GameOverState.Tie){
+        if(gs.getGameOver()==GameOverState.Tie){//if the game has ended as a tie then just increment the node winscore
             node.addScore(TIE_SCORE);
         }
-        if(gs.getGameOver()==GameOverState.Win && !win){
+        if(gs.getGameOver()==GameOverState.Win && !win){//if the game has ended as a win for someone but its not you then reduce winscore
             node.addScore(LOSS_SCORE);
         }
-        node.incrementVisits(1);
+        node.incrementVisits(1);//increment the visit score for node regardless of outcome
     }
 
 
@@ -352,14 +373,14 @@ public class AlphaRenars implements IBot{
         }
 
         public Node getBestNode() {
-            return Collections.max(this.children, Comparator.comparing(c -> c.getWinProbability()));
+            return Collections.max(this.children, Comparator.comparing(c -> c.getProbability()));
         }
 
         private double getWinScore() {
             return winScore;
         }
 
-        private double getWinProbability(){
+        private double getProbability(){
             return ((double) (winScore / ((double) visitCount)));
         }
 
@@ -379,9 +400,6 @@ public class AlphaRenars implements IBot{
                 children.add(node);
                 node.setMoveFromRoot(availableMove);
 
-                GameSimulator gs = createSimulator(currentState);
-                gs.updateGame(availableMove);
-                node.setState(gs.getCurrentState());
             }
         }
 
