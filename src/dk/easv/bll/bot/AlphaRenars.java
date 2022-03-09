@@ -31,41 +31,26 @@ public class AlphaRenars implements IBot{
     public IMove doMove(IGameState state) {
         return calculateWinningMove(state, moveTimeMs);
     }
-    // Plays single games until it wins and returns the first move for that. If iterations reached with no clear win, just return random valid move
-    private IMove calculateWinningMove(IGameState state, int maxTimeMs){
-        long time = System.currentTimeMillis();
 
-        Tree gameTree = new Tree(state);
-        Node rootNode = gameTree.getRootNode();
+    //Plays equal amount of random games for each available move, returns the one the provides most win %
+    private IMove calculateWinningMove(IGameState state, int maxTimeMs){
+        long startTime = System.currentTimeMillis();
+        Node rootNode = new Node(state);
         rootNode.expand();//For each possible move from rootNode create a new child node
         List<Node> childrenList = rootNode.getChildren();
-
-        while (System.currentTimeMillis() < time + maxTimeMs) { // check how much time has passed, stop if over maxTimeMs
+        while (System.currentTimeMillis() < startTime + maxTimeMs) { // check how much time has passed, stop if over maxTimeMs
             for (Node node : childrenList) {
-                Thread t = new Thread(){
-                    @Override
-                    public void run() {
-                        playOutRandomly_IncrementAccordingly(node,rootNode);
-                        playOutRandomly_IncrementAccordingly(node,rootNode);
-                    }
-                };
-                t.run();
+                playOutRandomly_IncrementAccordingly(node,rootNode);
             }
-            
-
-
-
         }
         Node bestNode = rootNode.getBestNode();
-        IMove bestMove = bestNode.getWinningMove();
+        IMove bestMove = bestNode.getMoveFromRoot();
         return bestMove;
     }
 
     private void playOutRandomly_IncrementAccordingly(Node node, Node rootNode) {
         GameSimulator gs = createSimulator(rootNode.getState());
         IMove randomMovePlayer = node.getMoveFromRoot();
-        IMove winnerMove = randomMovePlayer;
-        node.setWinningMove(winnerMove);
         boolean win = false;
 
         while (gs.getGameOver()==GameOverState.Active){ // Game not ended
@@ -87,12 +72,11 @@ public class AlphaRenars implements IBot{
         }
 
         if (gs.getGameOver()==GameOverState.Win && win){
-            node.addScore(WIN_SCORE); // Hint you could maybe save multiple games and pick the best? Now it just returns at a possible victory
+            node.addScore(WIN_SCORE);
         }
         if(gs.getGameOver()==GameOverState.Tie){
             node.addScore(TIE_SCORE);
         }
-
         if(gs.getGameOver()==GameOverState.Win && !win){
             node.addScore(LOSS_SCORE);
         }
@@ -318,12 +302,10 @@ public class AlphaRenars implements IBot{
     }
 
     class Node{
-        private Node parentNode;
         private List<Node> children;
         private double winScore = 0;
         private int visitCount = 0;
         private IGameState state;
-        private IMove winningMove;
 
         public IMove getMoveFromRoot() {
             return moveFromRoot;
@@ -345,9 +327,6 @@ public class AlphaRenars implements IBot{
             this.state.getField().setMacroboard(macroBoard);
         }
 
-        public void setWinningMove(IMove winningMove){
-            this.winningMove = winningMove;
-        }
 
         public IGameState getState() {
             return state;
@@ -357,10 +336,6 @@ public class AlphaRenars implements IBot{
             this.state = currentState;
         }
 
-        public Node getRandomChild() {
-            Random r = new Random();
-            return children.get(r.nextInt(children.size()));
-        }
 
         public void incrementVisits(int i) {
             visitCount+=i;
@@ -401,8 +376,7 @@ public class AlphaRenars implements IBot{
             List<IMove> availableMoves = this.getState().getField().getAvailableMoves();
             for (IMove availableMove : availableMoves) {
                 Node node = new Node(state);
-                node.setParent(this);
-                this.children.add(node);
+                children.add(node);
                 node.setMoveFromRoot(availableMove);
 
                 GameSimulator gs = createSimulator(currentState);
@@ -411,17 +385,6 @@ public class AlphaRenars implements IBot{
             }
         }
 
-        private void setParent(Node node) {
-            parentNode = node;
-        }
-
-        public IMove getWinningMove() {
-            return winningMove;
-        }
-
-        public Node getParent() {
-            return parentNode;
-        }
     }
 
     class Tree{
