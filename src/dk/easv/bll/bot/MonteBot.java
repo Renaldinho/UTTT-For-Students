@@ -7,11 +7,217 @@ import dk.easv.bll.move.IMove;
 
 import java.util.*;
 
-public class ExampleSneakyBot implements IBot{
+public class MonteBot implements IBot {
+
     private static final int WIN_SCORE = 10;
-    private static final int TIE_SCORE = 3;
-    final int moveTimeMs = 500;
-    private String BOT_NAME = getClass().getSimpleName();
+    private final String botName = "Monte bot";
+    private final int timeMs = 10;
+
+    @Override
+    public IMove doMove(IGameState state) {
+        return getOptimalMove(state);
+    }
+
+    private IMove getOptimalMove(IGameState state) {
+        long currentTime = System.currentTimeMillis();
+        Tree tree = new Tree(state);//INIT Node tree;
+        Node rootNode = tree.getRoot();//set root node
+
+        int opponent = (state.getMoveNumber()+1)%2;//Get Opponent
+
+        while (System.currentTimeMillis() < currentTime + timeMs){
+
+            Node promisingNode = getPromisingNode(rootNode);
+            GameSimulator gs = createSimulator(promisingNode.getState());
+
+            if (gs.getGameOver()==GameOverState.Active)
+                expandNode(promisingNode);
+
+            if(promisingNode.getChildren().size()!=0){
+                promisingNode = promisingNode.getRandomChild();
+            }
+            int resultPlayer = playoutRandomly(promisingNode,opponent);
+            backPropagate(promisingNode,resultPlayer);
+
+        }
+        Node node = rootNode.getBestNode();
+        return getMove(node,rootNode);
+    }
+
+    private IMove getMove(Node winner, Node root) {
+        String[][] parentBoard = root.getState().getField().getBoard();
+        String[][] childBoard = winner.getState().getField().getBoard();
+        for(int i = 0; i < parentBoard.length; i++)
+        {
+            for(int j = 0; j < parentBoard[i].length; j++)
+            {
+                if(!parentBoard[i][j].equals(childBoard[i][j]))
+                {
+                    return new Move(i,j);
+                }
+            }
+        }
+        return null;
+    }
+
+    private void backPropagate(Node promisingNode, int resultPlayer) {
+        Node tempNode = promisingNode;
+        while(tempNode.getParent()!=null){
+            tempNode.incrementVisits(1);
+            if (tempNode.getState().getRoundNumber()+1%2== resultPlayer)
+                tempNode.addScore(WIN_SCORE);
+            tempNode = tempNode.getParent();
+        }
+    }
+
+    private int playoutRandomly(Node promisingNode, int opponent) {
+        Node tempNode = new Node(promisingNode.getState());
+        GameSimulator gs = createSimulator(tempNode.getState());
+        Random r = new Random();
+
+        List<IMove> availableMoves;
+        if(gs.getGameOver()!=GameOverState.Active && (gs.getCurrentState().getMoveNumber()+1)%2==opponent)
+            tempNode.setWinScore(Integer.MIN_VALUE);//Playout of node was in favor of opponent so winscore is the min possible value
+        while (gs.getGameOver()==GameOverState.Active){
+            availableMoves = gs.getCurrentState().getField().getAvailableMoves();
+            gs.updateGame(availableMoves.get(r.nextInt(availableMoves.size())));
+        }
+        int playerNo = (gs.getCurrentState().getMoveNumber()+1)%2;
+        return  playerNo;
+
+
+    }
+
+    private void expandNode(Node promisingNode) {
+        List<IMove> availableMoves = promisingNode.getState().getField().getAvailableMoves();
+        for (IMove availableMove : availableMoves) {
+            Node child = new Node(promisingNode.getState());
+            promisingNode.getChildren().add(child);
+            child.setParent(promisingNode);
+
+            GameSimulator gs = createSimulator(child.getState());
+            gs.updateGame(availableMove);
+            child.setState(gs.getCurrentState());
+        }
+    }
+
+    private Node getPromisingNode(Node rootNode) {
+        Node node = rootNode;
+        while (node.getChildren().size()!=0)
+            node = UCB.getNodeWithHighestUCB(node);
+        return node;
+    }
+
+
+    class Node{
+        private IGameState gameState;
+        private Node parent;
+        private int visitCount;
+        private double winScore;
+        private List<Node> children;
+
+        public Node getParent() {
+            return parent;
+        }
+
+        public void setParent(Node parent) {
+            this.parent = parent;
+        }
+
+        public int getVisitCount() {
+            return visitCount;
+        }
+
+        public void setVisitCount(int visitCount) {
+            this.visitCount = visitCount;
+        }
+
+        public double getWinScore() {
+            return winScore;
+        }
+
+        public void setWinScore(double winScore) {
+            this.winScore = winScore;
+        }
+
+        public List<Node> getChildren() {
+            return children;
+        }
+
+        public void setChildren(List<Node> children) {
+            this.children = children;
+        }
+
+        public Node(IGameState gameState){
+            this.gameState = new GameState();
+
+            String[][] board = Arrays.stream(gameState.getField().getBoard()).map(String[]::clone).toArray(String[][]::new);
+            String[][] macroBoard = Arrays.stream(gameState.getField().getMacroboard()).map(String[]::clone).toArray(String[][]::new);
+            this.gameState.getField().setBoard(board);
+            this.gameState.getField().setMacroboard(macroBoard);
+
+            parent = null;
+            visitCount = 0;
+            winScore = 0;
+            children = new ArrayList<>();
+        }
+
+        public IGameState getState() {
+            return gameState;
+        }
+
+        public void setState(IGameState currentState) {
+            gameState = currentState;
+        }
+
+        public Node getRandomChild() {
+            Random r = new Random();
+            return children.get(r.nextInt(children.size()));
+        }
+
+        public void incrementVisits(int i) {
+            visitCount+=i;
+        }
+
+        public void addScore(int winScore) {
+            this.winScore+=winScore;
+        }
+
+        public Node getBestNode() {
+            return Collections.max(this.children, Comparator.comparing(c -> {
+                return c.getVisitCount();
+            }));
+        }
+
+    }
+
+    class Tree{
+        private Node rootNode;
+
+        public Tree(IGameState state) {
+            rootNode = new Node(state);
+        }
+
+        public Node getRoot() {
+            return  rootNode;
+        }
+    }
+
+    class UCB {
+
+        public static Node getNodeWithHighestUCB(Node node) {
+            List<Node> childrenList = node.getChildren();
+            int parentVisits = node.getVisitCount();
+            return Collections.max(childrenList, Comparator.comparing(child -> getUCBValue(parentVisits,child.getVisitCount(),child.getWinScore())));
+        }
+    }
+
+    private static double getUCBValue(int parentVisits, int visitCount, double winScore) {
+        if (visitCount == 0)
+            return Integer.MAX_VALUE; //this node has not yet been visited meaning the upper confidence bound is infity.
+        return ((Double) (winScore / visitCount)) // win ratio of node
+                + 1.41 * Math.sqrt(Math.log(parentVisits) / visitCount);
+    }
 
     private GameSimulator createSimulator(IGameState state) {
         GameSimulator simulator = new GameSimulator(new GameState());
@@ -25,61 +231,8 @@ public class ExampleSneakyBot implements IBot{
     }
 
     @Override
-    public IMove doMove(IGameState state) {
-        return calculateWinningMove(state, moveTimeMs);
-    }
-    // Plays single games until it wins and returns the first move for that. If iterations reached with no clear win, just return random valid move
-    private IMove calculateWinningMove(IGameState state, int maxTimeMs){
-        long time = System.currentTimeMillis();
-        Random rand = new Random();
-
-        Tree gameTree = new Tree(state);
-        Node rootNode = gameTree.getRootNode();
-        rootNode.expand();
-        List<Node> childrenList = rootNode.getChildren();
-
-        while (System.currentTimeMillis() < time + maxTimeMs) { // check how much time has passed, stop if over maxTimeMs
-            for (Node node : childrenList) {
-                GameSimulator gs = createSimulator(rootNode.getState());
-                IMove randomMovePlayer = node.getMoveFromRoot();
-                IMove winnerMove = randomMovePlayer;
-                boolean win = false;
-
-                while (gs.getGameOver()==GameOverState.Active){ // Game not ended
-                    List<IMove> moves = gs.getCurrentState().getField().getAvailableMoves();
-                    gs.updateGame(randomMovePlayer);
-                    win = true;
-
-                    // Opponent plays randomly
-                    if (gs.getGameOver()==GameOverState.Active){ // game still going
-                        moves = gs.getCurrentState().getField().getAvailableMoves();
-                        IMove randomMoveOpponent = moves.get(rand.nextInt(moves.size()));
-                        gs.updateGame(randomMoveOpponent);
-                        win = false;
-                    }
-                    if (gs.getGameOver()==GameOverState.Active){ // game still going
-                        moves = gs.getCurrentState().getField().getAvailableMoves();
-                        randomMovePlayer = moves.get(rand.nextInt(moves.size()));
-                    }
-                }
-
-                if (gs.getGameOver()==GameOverState.Win && win){
-                    node.setWinningMove(winnerMove);
-                    node.addScore(WIN_SCORE); // Hint you could maybe save multiple games and pick the best? Now it just returns at a possible victory
-                }
-                node.incrementVisits(1);
-            }
-
-        }
-        Node bestNode = rootNode.getBestNode();
-        IMove bestMove = bestNode.getWinningMove();
-        return bestMove;
-    }
-
-
-    @Override
     public String getBotName() {
-        return BOT_NAME;
+        return botName;
     }
 
     public enum GameOverState {
@@ -116,7 +269,7 @@ public class ExampleSneakyBot implements IBot{
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Move move = (Move) o;
+            ExampleSneakyBot.Move move = (ExampleSneakyBot.Move) o;
             return x == move.x && y == move.y;
         }
 
@@ -294,113 +447,5 @@ public class ExampleSneakyBot implements IBot{
         }
     }
 
-    class Node{
-        private Node parentNode;
-        private List<Node> children;
-        private double winScore = 0;
-        private int visitCount = 0;
-        private IGameState state;
-        private IMove winningMove;
-
-        public IMove getMoveFromRoot() {
-            return moveFromRoot;
-        }
-
-        public void setMoveFromRoot(IMove moveFromRoot) {
-            this.moveFromRoot = moveFromRoot;
-        }
-
-        private IMove moveFromRoot;
-
-        public Node(IGameState state){
-            children = new ArrayList<>();
-            this.state = state;
-
-            String[][] board = Arrays.stream(state.getField().getBoard()).map(String[]::clone).toArray(String[][]::new);
-            String[][] macroBoard = Arrays.stream(state.getField().getMacroboard()).map(String[]::clone).toArray(String[][]::new);
-            this.state.getField().setBoard(board);
-            this.state.getField().setMacroboard(macroBoard);
-        }
-
-        public void setWinningMove(IMove winningMove){
-            this.winningMove = winningMove;
-        }
-
-        public IGameState getState() {
-            return state;
-        }
-
-        public void setState(IGameState currentState) {
-            this.state = currentState;
-        }
-
-        public Node getRandomChild() {
-            Random r = new Random();
-            return children.get(r.nextInt(children.size()));
-        }
-
-        public void incrementVisits(int i) {
-            visitCount+=i;
-        }
-
-        public void addScore(int winScore) {
-            this.winScore+=winScore;
-        }
-
-        public Node getBestNode() {
-            return Collections.max(this.children, Comparator.comparing(c -> c.getWinProbability()));
-        }
-
-        private double getWinScore() {
-            return winScore;
-        }
-
-        private double getWinProbability(){
-            return ((double) (winScore / ((double) visitCount)));
-        }
-
-        private int getVisitCount() {
-            return visitCount;
-        }
-
-        public List<Node> getChildren() {
-            return children;
-        }
-
-        public void expand() {
-            IGameState currentState = this.state;
-            List<IMove> availableMoves = this.getState().getField().getAvailableMoves();
-            for (IMove availableMove : availableMoves) {
-                Node node = new Node(state);
-                node.setParent(this);
-                this.children.add(node);
-                node.setMoveFromRoot(availableMove);
-
-                GameSimulator gs = createSimulator(currentState);
-                gs.updateGame(availableMove);
-                node.setState(gs.getCurrentState());
-            }
-        }
-
-        private void setParent(Node node) {
-            parentNode = node;
-        }
-
-        public IMove getWinningMove() {
-            return winningMove;
-        }
-    }
-
-    class Tree{
-        private Node rootNode;
-
-        public Tree(IGameState state){
-            rootNode = new Node(state);
-        }
-
-        public Node getRootNode() {
-            return rootNode;
-        }
-    }
 
 }

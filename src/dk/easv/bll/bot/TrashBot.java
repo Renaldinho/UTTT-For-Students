@@ -112,21 +112,21 @@ public class TrashBot implements IBot{
         if (board[move.getX()][startY].equals(player))
             if (board[move.getX()][startY].equals(board[move.getX()][startY+1]) &&
                 board[move.getX()][startY+1].equals(board[move.getX()][startY+2])){
-                System.out.println("matches vertically");
+                //System.out.println("matches vertically");
                     return true;
             }
         //Diagonal checking TopLeft-BottomRight
         if(board[startX][startY].equals(player))
             if (board[startX+1][startY+1].equals(board[startX][startY]) &&
                 board[startX+2][startY+2].equals(board[startX+1][startY+1])){
-                System.out.println("matches diagonally");
+                //System.out.println("matches diagonally");
                 return true;
             }
 
         if(board[startX+2][startY].equals(player))
             if (board[startX+2][startY].equals(board[startX+1][startY+1]) &&
                     board[startX][startY+2].equals(board[startX+1][startY+1])){
-                System.out.println("matches diagonally opposite");
+                //System.out.println("matches diagonally opposite");
                 return true;
             }
 
