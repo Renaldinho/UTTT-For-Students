@@ -7,11 +7,14 @@ import dk.easv.bll.move.IMove;
 
 import java.util.*;
 
-public class ExampleSneakyBot implements IBot{
+public class AlphaRenars implements IBot{
     private static final int WIN_SCORE = 10;
     private static final int TIE_SCORE = 3;
-    final int moveTimeMs = 450;
-    private String BOT_NAME = getClass().getSimpleName();
+    private static final int LOSS_SCORE = -10;
+    final int moveTimeMs = 480;
+    private String BOT_NAME = "Renars";
+
+    Random rand = new Random();
 
     private GameSimulator createSimulator(IGameState state) {
         GameSimulator simulator = new GameSimulator(new GameState());
@@ -31,53 +34,69 @@ public class ExampleSneakyBot implements IBot{
     // Plays single games until it wins and returns the first move for that. If iterations reached with no clear win, just return random valid move
     private IMove calculateWinningMove(IGameState state, int maxTimeMs){
         long time = System.currentTimeMillis();
-        Random rand = new Random();
 
         Tree gameTree = new Tree(state);
         Node rootNode = gameTree.getRootNode();
-        rootNode.expand();
+        rootNode.expand();//For each possible move from rootNode create a new child node
         List<Node> childrenList = rootNode.getChildren();
 
         while (System.currentTimeMillis() < time + maxTimeMs) { // check how much time has passed, stop if over maxTimeMs
             for (Node node : childrenList) {
-                GameSimulator gs = createSimulator(rootNode.getState());
-                IMove randomMovePlayer = node.getMoveFromRoot();
-                IMove winnerMove = randomMovePlayer;
-                boolean win = false;
-
-                while (gs.getGameOver()==GameOverState.Active){ // Game not ended
-                    List<IMove> moves = gs.getCurrentState().getField().getAvailableMoves();
-                    gs.updateGame(randomMovePlayer);
-                    win = true;
-
-                    // Opponent plays randomly
-                    if (gs.getGameOver()==GameOverState.Active){ // game still going
-                        moves = gs.getCurrentState().getField().getAvailableMoves();
-                        IMove randomMoveOpponent = moves.get(rand.nextInt(moves.size()));
-                        gs.updateGame(randomMoveOpponent);
-                        win = false;
+                Thread t = new Thread(){
+                    @Override
+                    public void run() {
+                        playOutRandomly_IncrementAccordingly(node,rootNode);
+                        playOutRandomly_IncrementAccordingly(node,rootNode);
                     }
-                    if (gs.getGameOver()==GameOverState.Active){ // game still going
-                        moves = gs.getCurrentState().getField().getAvailableMoves();
-                        randomMovePlayer = moves.get(rand.nextInt(moves.size()));
-                    }
-                }
-
-                if (gs.getGameOver()==GameOverState.Win && win){
-                    node.setWinningMove(winnerMove);
-                    node.addScore(WIN_SCORE); // Hint you could maybe save multiple games and pick the best? Now it just returns at a possible victory
-                }
-                if(gs.getGameOver()==GameOverState.Tie){
-                    node.setWinningMove(winnerMove);
-                    node.addScore(TIE_SCORE);
-                }
-                node.incrementVisits(1);
+                };
+                t.run();
             }
+            
+
+
 
         }
         Node bestNode = rootNode.getBestNode();
         IMove bestMove = bestNode.getWinningMove();
         return bestMove;
+    }
+
+    private void playOutRandomly_IncrementAccordingly(Node node, Node rootNode) {
+        GameSimulator gs = createSimulator(rootNode.getState());
+        IMove randomMovePlayer = node.getMoveFromRoot();
+        IMove winnerMove = randomMovePlayer;
+        node.setWinningMove(winnerMove);
+        boolean win = false;
+
+        while (gs.getGameOver()==GameOverState.Active){ // Game not ended
+            List<IMove> moves = gs.getCurrentState().getField().getAvailableMoves();
+            gs.updateGame(randomMovePlayer);
+            win = true;
+
+            // Opponent plays randomly
+            if (gs.getGameOver()==GameOverState.Active){ // game still going
+                moves = gs.getCurrentState().getField().getAvailableMoves();
+                IMove randomMoveOpponent = moves.get(rand.nextInt(moves.size()));
+                gs.updateGame(randomMoveOpponent);
+                win = false;
+            }
+            if (gs.getGameOver()==GameOverState.Active){ // game still going
+                moves = gs.getCurrentState().getField().getAvailableMoves();
+                randomMovePlayer = moves.get(rand.nextInt(moves.size()));
+            }
+        }
+
+        if (gs.getGameOver()==GameOverState.Win && win){
+            node.addScore(WIN_SCORE); // Hint you could maybe save multiple games and pick the best? Now it just returns at a possible victory
+        }
+        if(gs.getGameOver()==GameOverState.Tie){
+            node.addScore(TIE_SCORE);
+        }
+
+        if(gs.getGameOver()==GameOverState.Win && !win){
+            node.addScore(LOSS_SCORE);
+        }
+        node.incrementVisits(1);
     }
 
 
@@ -349,6 +368,12 @@ public class ExampleSneakyBot implements IBot{
 
         public void addScore(int winScore) {
             this.winScore+=winScore;
+            /*if (parentNode!=null){
+                parentNode.incrementVisits(1);
+                parentNode.addScore(winScore);
+            }
+
+             */
         }
 
         public Node getBestNode() {
@@ -392,6 +417,10 @@ public class ExampleSneakyBot implements IBot{
 
         public IMove getWinningMove() {
             return winningMove;
+        }
+
+        public Node getParent() {
+            return parentNode;
         }
     }
 

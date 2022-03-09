@@ -198,7 +198,7 @@ public class MegaTrashBot implements IBot{
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            ExampleSneakyBot.Move move = (ExampleSneakyBot.Move) o;
+            AlphaRenars.Move move = (AlphaRenars.Move) o;
             return x == move.x && y == move.y;
         }
 
