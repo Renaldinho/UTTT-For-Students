@@ -10,7 +10,7 @@ import java.util.*;
 public class ExampleSneakyBot implements IBot{
     private static final int WIN_SCORE = 10;
     private static final int TIE_SCORE = 3;
-    final int moveTimeMs = 500;
+    final int moveTimeMs = 450;
     private String BOT_NAME = getClass().getSimpleName();
 
     private GameSimulator createSimulator(IGameState state) {
@@ -66,6 +66,10 @@ public class ExampleSneakyBot implements IBot{
                 if (gs.getGameOver()==GameOverState.Win && win){
                     node.setWinningMove(winnerMove);
                     node.addScore(WIN_SCORE); // Hint you could maybe save multiple games and pick the best? Now it just returns at a possible victory
+                }
+                if(gs.getGameOver()==GameOverState.Tie){
+                    node.setWinningMove(winnerMove);
+                    node.addScore(TIE_SCORE);
                 }
                 node.incrementVisits(1);
             }
