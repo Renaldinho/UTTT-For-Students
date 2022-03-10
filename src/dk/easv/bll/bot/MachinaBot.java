@@ -7,12 +7,12 @@ import dk.easv.bll.move.IMove;
 
 import java.util.*;
 
-public class AlphaRenars implements IBot{
+public class MachinaBot implements IBot{
     private static final int WIN_SCORE = 10;
     private static final int TIE_SCORE = 3;
     private static final int LOSS_SCORE = -10;
-    final int moveTimeMs = 100;
-    private String BOT_NAME = "Renar's bot";
+    final int moveTimeMs = 500;
+    private String BOT_NAME = "Machina";
 
     Random rand = new Random();
 
